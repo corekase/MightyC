@@ -1,7 +1,10 @@
 #!/bin/env python
-import sys, subprocess, re
+import os, sys, subprocess, argparse, logging, re
 from enum import Enum
 from typing import List, Optional, Tuple
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 Token = Enum("Token", "WHITESPACE LPAREN RPAREN LBRACE RBRACE SEMICOLON INT \
               VOID RETURN IDENTIFIER CONSTANT")
@@ -166,79 +169,106 @@ class Constant(ASTNode):
 
 class Driver:
     def __init__(self):
-        arguments = sys.argv[1:]
-        if not arguments:
-            self.invalid_filename()
-        else:
-            if arguments[0].startswith("-"):
-                if len(arguments) < 2:
-                    self.invalid_filename()
-                else:
-                    self.option = arguments[0]
-                    file_name = arguments[1]
-            else:
-                if len(arguments) != 1:
-                    self.invalid_filename()
-                else:
-                    file_name = arguments[0]
-                    self.option = ""
-            # Validate file name
-            if len(file_name) < 2 or not file_name.endswith(".c"):
-                self.invalid_filename()
-            else:
-                self.file_name = file_name[:-2]
+        self.parser = argparse.ArgumentParser(description='C Compiler Toolchain')
+        self.parser.add_argument('file', type=str, help='Input C source file')
+        self.parser.add_argument('-S', action='store_true', help='Generate assembly code')
+        self.parser.add_argument('--lex', action='store_true', help='Only perform lexical analysis')
+        self.parser.add_argument('--parse', action='store_true', help='Only perform parsing')
+        self.parser.add_argument('--codegen', action='store_true', help='Only perform code generation')
+        self.args = self.parser.parse_args()
 
-    def invalid_filename(self):
-        print("invalid filename")
+        # Validate file name
+        if not self._validate_file(self.args.file):
+            self._invalid_filename()
+
+    def _validate_file(self, file_path: str) -> bool:
+        """Validate the input file exists and has the correct extension."""
+        if not os.path.isfile(file_path):
+            logging.error(f"File not found: {file_path}")
+            return False
+        if not file_path.endswith('.c'):
+            logging.error(f"Invalid file extension. Expected .c, got {file_path}")
+            return False
+        return True
+
+    def _invalid_filename(self):
+        """Log error and exit with non-zero code."""
+        logging.error("Invalid filename")
         sys.exit(1)
 
-    def invoke(self, params):
-        return subprocess.run(params, capture_output=True, text=True).returncode
+    def _run_command(self, command: list, description: str):
+        """Execute a subprocess command and log the output."""
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            logging.info(f"{description} completed successfully")
+            return result.returncode
+        except subprocess.CalledProcessError as e:
+            logging.error(f"{description} failed: {e.stderr}")
+            sys.exit(1)
 
-    def codegen(self):
-        self.invoke(["gcc", "-S", "-O", "-fno-asynchronous-unwind-tables", "-fcf-protection=none", f"{self.file_name}.i", f"-o{self.file_name}.s"])
+    def _cleanup(self):
+        """Clean up intermediate files."""
+        for ext in ('.i', '.s', '.o'):
+            file_path = f"{self.args.file[:-2]}{ext}"
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logging.info(f"Removed intermediate file: {file_path}")
 
-    def assemble(self):
-        # lexical tokenization
-        tokens = Lexer().analyze(self.file_name)
-        print(tokens)
-        if self.option == "--lex":
-            self.cleanup()
+    def preprocess(self):
+        """Preprocess the C source file."""
+        output_file = f"{self.args.file[:-2]}.i"
+        command = ["gcc", "-E", "-P", f"{self.args.file}", "-o", output_file]
+        self._run_command(command, "Preprocessing")
+
+    def lex(self):
+        """Perform lexical analysis."""
+        tokens = Lexer().analyze(self.args.file[:-2])
+        logging.info(f"Lexical analysis completed. Found {len(tokens)} tokens")
+        if self.args.lex:
+            logging.info("Exiting after lexical analysis")
             sys.exit(0)
-        # parse lexical list into abstract syntax tree
+        return tokens
+
+    def parse(self, tokens):
+        """Parse tokens into an AST."""
         ast = Parser(tokens).parse()
         ast.print_ast()
-        if self.option == "--parse":
-            self.cleanup()
+        if self.args.parse:
+            logging.info("Exiting after parsing")
             sys.exit(0)
-        # generate assembly code from ast
-        self.codegen()
-        if self.option == "-S":
-            # delete preprocessed file, but not the assembly file
-            self.invoke(["rm", f"{self.file_name}.i"])
-            sys.exit(0)
-        if self.option == "--codegen":
-            self.cleanup()
+        return ast
+
+    def codegen(self, ast):
+        """Generate assembly code from AST."""
+        self._run_command(["gcc", "-S", "-O", "-fno-asynchronous-unwind-tables", "-fcf-protection=none", f"{self.args.file[:-2]}.i", "-o", f"{self.args.file[:-2]}.s"], "Code generation")
+        if self.args.codegen:
+            logging.info("Exiting after code generation")
             sys.exit(0)
 
-    def cleanup(self):
-        # delete preprocessed file
-        self.invoke(["rm", f"{self.file_name}.i"])
-        # delete assembly file
-        self.invoke(["rm", f"{self.file_name}.s"])
+    def assemble(self, ast):
+        """Assemble the code and handle options."""
+        if self.args.S:
+            self._run_command(["rm", f"{self.args.file[:-2]}.i"], "Removing preprocessed file")
+            sys.exit(0)
+
+    def compile(self):
+        """Compile the assembly to binary."""
+        self._run_command(["gcc", f"{self.args.file[:-2]}.s", "-o", self.args.file[:-2]], "Compiling to executable")
 
     def run(self):
-        print(f"Processing file: {self.file_name}.c")
-        # preprocess input file
-        self.invoke(["gcc", "-E", "-P", f"{self.file_name}.c", f"-o{self.file_name}.i"])
-        # compile processed input file to assembly
-        self.assemble()
-        # compile assembly to binary executable
-        self.invoke(["gcc", f"{self.file_name}.s", f"-o{self.file_name}"])
-        # remove intermediate files
-        self.cleanup()
-        # return no errors
-        sys.exit(0)
+        """Main execution flow."""
+        try:
+            self.preprocess()
+            tokens = self.lex()
+            ast = self.parse(tokens)
+            self.codegen(ast)
+            self.assemble(ast)
+            self.compile()
+            self._cleanup()
+            logging.info("Compilation completed successfully")
+        except Exception as e:
+            logging.error(f"Compilation failed: {str(e)}")
+            sys.exit(1)
 
 if __name__ == "__main__":
     Driver().run()
