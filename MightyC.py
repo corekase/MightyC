@@ -1,19 +1,35 @@
 #!/bin/env python
 import sys, subprocess, re
+from enum import Enum
+from typing import List, Optional, Tuple
+
+class Tokens(Enum):
+    """Enum for token types"""
+    WHITESPACE = "whitespace"
+    INT = "int"
+    IDENTIFIER = "identifier"
+    CONSTANT = "constant"
+    LPAREN = "("
+    RPAREN = ")"
+    LBRACE = "{"
+    RBRACE = "}"
+    SEMICOLON = ";"
+    RETURN = "return"
+    VOID = "void"
 
 class Lexer:
     TOKENS = (
-        (re.compile(r'\s+'), "whitespace"),
-        (re.compile(r'\('), "("),
-        (re.compile(r'\)'), ")"),
-        (re.compile(r'\{'), "{"),
-        (re.compile(r'\}'), "}"),
-        (re.compile(r';'), ";"),
-        (re.compile(r'int\b'), "int"),
-        (re.compile(r'void\b'), "void"),
-        (re.compile(r'return\b'), "return"),
-        (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), "identifier"),
-        (re.compile(r'[0-9]+'), "constant")
+        (re.compile(r'\s+'), Tokens.WHITESPACE),
+        (re.compile(r'\('), Tokens.LPAREN),
+        (re.compile(r'\)'), Tokens.RPAREN),
+        (re.compile(r'\{'), Tokens.LBRACE),
+        (re.compile(r'\}'), Tokens.RBRACE),
+        (re.compile(r';'), Tokens.SEMICOLON),
+        (re.compile(r'int\b'), Tokens.INT),
+        (re.compile(r'void\b'), Tokens.VOID),
+        (re.compile(r'return\b'), Tokens.RETURN),
+        (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), Tokens.IDENTIFIER),
+        (re.compile(r'[0-9]+'), Tokens.CONSTANT)
     )
     NONTOKEN = re.compile(r'\S+')
 
@@ -34,7 +50,7 @@ class Lexer:
                 if match:
                     matched = True
                     position = match.end()
-                    if token_type != "whitespace":
+                    if token_type != Tokens.WHITESPACE:
                         tokens.append((token_type, match.group()))
                     break
             if not matched:
@@ -48,92 +64,116 @@ class Lexer:
         return tokens
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens: List[Tuple[Tokens, str]]):
         self.tokens = tokens
         self.pos = 0
-        self.end = len(self.tokens)
+        self.end = len(tokens)
 
-    def parse_program(self):
-        program = Program([self.parse_function()])
+    def parse(self) -> "ASTNode":
+        """Main parsing entry point"""
+        program = self.parse_program()
         if self.pos != self.end:
-            print("error: extra tokens found at end of input")
+            print(f"Unexpected tokens remaining at position {self.pos}")
             sys.exit(1)
         return program
 
-    def parse_function(self):
-        self.expects("int")
-        name = self.expects("identifier")[1]
-        self.expects("(")
-        self.expects("void")
-        self.expects(")")
-        self.expects("{")
+    def parse_program(self) -> "Program":
+        """Parse a program (single function)"""
+        function = self.parse_function()
+        return Program([function])
+
+    def parse_function(self) -> "Function":
+        """Parse a function declaration"""
+        self.expect(Tokens.INT)
+        name = self.expect(Tokens.IDENTIFIER)[1]
+        self.expect(Tokens.LPAREN)
+        self.expect(Tokens.VOID)
+        self.expect(Tokens.RPAREN)
+        self.expect(Tokens.LBRACE)
         statement = self.parse_statement()
-        self.expects("}")
-        node = Function(name, [statement])
-        return node
+        self.expect(Tokens.RBRACE)
+        return Function(name, [statement])
 
-    def parse_statement(self):
-        self.expects("return")
-        constant = self.parse_exp()
-        self.expects(";")
-        return Return([constant])
+    def parse_statement(self) -> "Return":
+        """Parse a return statement"""
+        self.expect(Tokens.RETURN)
+        expression = self.parse_expression()
+        self.expect(Tokens.SEMICOLON)
+        return Return([expression])
 
-    def parse_exp(self):
-        literal = self.expects("constant")[1]
+    def parse_expression(self) -> "Constant":
+        """Parse a constant expression"""
+        literal = self.expect(Tokens.CONSTANT)[1]
         return Constant(literal)
 
-    def expects(self, expected):
-        if self.pos >= self.end:
-            print(f"unexpected end of input, expected: {expected}")
+    def expect(self, expected_type: Tokens) -> Tuple[Tokens, str]:
+        """Expect a token of the specified type"""
+        if self.pos > self.end:
+            print(f"Unexpected end of input at position {self.pos}, expected: {expected_type}")
             sys.exit(1)
         token_type, literal = self.tokens[self.pos]
-        if token_type != expected:
-            print(f"syntax error, expected: {expected}, actual {token_type}")
-            sys.exit(1)
         self.pos += 1
+        if token_type != expected_type:
+            print(f"Unexpected token, actual: {token_type}, expected: {expected_type}")
+            sys.exit(1)
         return token_type, literal
 
 class ASTNode:
-    def __init__(self, node_type, children=[]):
+    """Base class for all AST nodes"""
+    def __init__(self, node_type: str):
         self.type = node_type
-        self.children = children
+        self.children: List["ASTNode"] = []
 
-    def add_child(self, child):
+    def add_child(self, child: "ASTNode"):
+        """Add a child node"""
         self.children.append(child)
 
-    def print_ast(self, indent=0):
+    def print_ast(self, indent: int = 0):
+        """Print the AST with indentation"""
         print("  " * indent + f"{self.type}")
         self.more_info(indent)
         for child in self.children:
             child.print_ast(indent + 1)
 
-    def more_info(self, indent=0):
-        # override in subclasses
+    def more_info(self, indent: int = 0):
+        """Additional information for the node (override in subclasses)"""
         pass
 
 class Program(ASTNode):
-    def __init__(self, children=[]):
-        super().__init__("program", children)
+    """Program node containing a list of functions"""
+    def __init__(self, children: List["ASTNode"] = None):
+        super().__init__("program")
+        if children:
+            self.children = children
 
 class Function(ASTNode):
-    def __init__(self, name, children=[]):
-        super().__init__("function", children)
+    """Function node with name and body"""
+    def __init__(self, name: str, children: List["ASTNode"] = None):
+        super().__init__("function")
         self.name = name
+        if children:
+            self.children = children
 
-    def more_info(self, indent=0):
-        print("  " * indent + " -> " + self.name)
+    def more_info(self, indent: int = 0):
+        """Print function name information"""
+        print("  " * indent + f" -> {self.name}")
 
 class Return(ASTNode):
-    def __init__(self, children=[]):
-        super().__init__("return", children)
+    """Return statement node"""
+    def __init__(self, children: List["ASTNode"] = None):
+        super().__init__("return")
+        if children:
+            self.children = children
 
 class Constant(ASTNode):
-    def __init__(self, value):
+    """Constant value node"""
+    def __init__(self, value: str):
         super().__init__("constant")
         self.value = value
 
-    def more_info(self, indent=0):
-        print("  " * indent + " -> " + self.value)
+    def more_info(self, indent: int = 0):
+        """Print constant value information"""
+        print("  " * indent + f" -> {self.value}")
 
 class Driver:
     def __init__(self):
@@ -177,7 +217,7 @@ class Driver:
             self.cleanup()
             sys.exit(0)
         # parse lexical list into abstract syntax tree
-        ast = Parser(tokens).parse_program()
+        ast = Parser(tokens).parse()
         ast.print_ast()
         if self.option == "--parse":
             self.cleanup()
