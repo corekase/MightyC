@@ -20,7 +20,7 @@ class Lexer:
         (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), Token.IDENTIFIER),
         (re.compile(r'[0-9]+'), Token.CONSTANT)
     )
-    NONTOKEN = re.compile(r'\S+')
+    NON_TOKEN = re.compile(r'\S+')
 
     def analyze(self, file_name):
         try:
@@ -43,7 +43,7 @@ class Lexer:
                         tokens.append((token_type, match.group()))
                     break
             if not matched:
-                match = Lexer.NONTOKEN.match(data, position)
+                match = Lexer.NON_TOKEN.match(data, position)
                 if match:
                     unknown_token = match.group()
                 else:
