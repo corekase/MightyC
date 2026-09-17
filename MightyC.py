@@ -3,33 +3,22 @@ import sys, subprocess, re
 from enum import Enum
 from typing import List, Optional, Tuple
 
-class Tokens(Enum):
-    """Enum for token types"""
-    WHITESPACE = "whitespace"
-    INT = "int"
-    IDENTIFIER = "identifier"
-    CONSTANT = "constant"
-    LPAREN = "("
-    RPAREN = ")"
-    LBRACE = "{"
-    RBRACE = "}"
-    SEMICOLON = ";"
-    RETURN = "return"
-    VOID = "void"
+Token = Enum("Tokens", "WHITESPACE LPAREN RPAREN LBRACE RBRACE SEMICOLON INT \
+              VOID RETURN IDENTIFIER CONSTANT")
 
 class Lexer:
     TOKENS = (
-        (re.compile(r'\s+'), Tokens.WHITESPACE),
-        (re.compile(r'\('), Tokens.LPAREN),
-        (re.compile(r'\)'), Tokens.RPAREN),
-        (re.compile(r'\{'), Tokens.LBRACE),
-        (re.compile(r'\}'), Tokens.RBRACE),
-        (re.compile(r';'), Tokens.SEMICOLON),
-        (re.compile(r'int\b'), Tokens.INT),
-        (re.compile(r'void\b'), Tokens.VOID),
-        (re.compile(r'return\b'), Tokens.RETURN),
-        (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), Tokens.IDENTIFIER),
-        (re.compile(r'[0-9]+'), Tokens.CONSTANT)
+        (re.compile(r'\s+'), Token.WHITESPACE),
+        (re.compile(r'\('), Token.LPAREN),
+        (re.compile(r'\)'), Token.RPAREN),
+        (re.compile(r'\{'), Token.LBRACE),
+        (re.compile(r'\}'), Token.RBRACE),
+        (re.compile(r';'), Token.SEMICOLON),
+        (re.compile(r'int\b'), Token.INT),
+        (re.compile(r'void\b'), Token.VOID),
+        (re.compile(r'return\b'), Token.RETURN),
+        (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), Token.IDENTIFIER),
+        (re.compile(r'[0-9]+'), Token.CONSTANT)
     )
     NONTOKEN = re.compile(r'\S+')
 
@@ -50,7 +39,7 @@ class Lexer:
                 if match:
                     matched = True
                     position = match.end()
-                    if token_type != Tokens.WHITESPACE:
+                    if token_type != Token.WHITESPACE:
                         tokens.append((token_type, match.group()))
                     break
             if not matched:
@@ -64,7 +53,7 @@ class Lexer:
         return tokens
 
 class Parser:
-    def __init__(self, tokens: List[Tuple[Tokens, str]]):
+    def __init__(self, tokens: List[Tuple[Token, str]]):
         self.tokens = tokens
         self.pos = 0
         self.end = len(tokens)
@@ -84,29 +73,29 @@ class Parser:
 
     def parse_function(self) -> "Function":
         """Parse a function declaration"""
-        self.expect(Tokens.INT)
-        name = self.expect(Tokens.IDENTIFIER)[1]
-        self.expect(Tokens.LPAREN)
-        self.expect(Tokens.VOID)
-        self.expect(Tokens.RPAREN)
-        self.expect(Tokens.LBRACE)
+        self.expect(Token.INT)
+        name = self.expect(Token.IDENTIFIER)[1]
+        self.expect(Token.LPAREN)
+        self.expect(Token.VOID)
+        self.expect(Token.RPAREN)
+        self.expect(Token.LBRACE)
         statement = self.parse_statement()
-        self.expect(Tokens.RBRACE)
+        self.expect(Token.RBRACE)
         return Function(name, [statement])
 
     def parse_statement(self) -> "Return":
         """Parse a return statement"""
-        self.expect(Tokens.RETURN)
+        self.expect(Token.RETURN)
         expression = self.parse_expression()
-        self.expect(Tokens.SEMICOLON)
+        self.expect(Token.SEMICOLON)
         return Return([expression])
 
     def parse_expression(self) -> "Constant":
         """Parse a constant expression"""
-        literal = self.expect(Tokens.CONSTANT)[1]
+        literal = self.expect(Token.CONSTANT)[1]
         return Constant(literal)
 
-    def expect(self, expected_type: Tokens) -> Tuple[Tokens, str]:
+    def expect(self, expected_type: Token) -> Tuple[Token, str]:
         """Expect a token of the specified type"""
         if self.pos > self.end:
             print(f"Unexpected end of input at position {self.pos}, expected: {expected_type}")
