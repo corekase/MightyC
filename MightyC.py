@@ -268,6 +268,7 @@ class Driver:
             logging.info("Compilation completed successfully")
         except Exception as e:
             logging.error(f"Compilation failed: {str(e)}")
+            self._cleanup()
             sys.exit(1)
 
 if __name__ == "__main__":
