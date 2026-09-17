@@ -36,7 +36,7 @@ class Lexer:
             with open(f"{file_name}.i", "r") as file:
                 data = file.read()
         except FileNotFoundError:
-            print(f"Error: File {file_name}.i not found")
+            logging.error(f"Error: File {file_name}.i not found")
             sys.exit(1)
         tokens = []
         position = 0
@@ -53,7 +53,7 @@ class Lexer:
                     break
             if not matched:
                 line_number, column_number = self.get_line_column(data, position)
-                print(f"Unexpected token at line {line_number}, column {column_number}")
+                logging.error(f"Unexpected token at line {line_number}, column {column_number}")
                 sys.exit(1)
         return tokens
 
@@ -103,12 +103,12 @@ class Parser:
     def expect(self, expected_type: Token) -> Tuple[Token, str]:
         """Expect a token of the specified type"""
         if self.pos > self.end:
-            print(f"Unexpected end of input at position {self.pos}, expected: {expected_type}")
+            logging.error(f"Unexpected end of input at position {self.pos}, expected: {expected_type}")
             sys.exit(1)
         token_type, literal = self.tokens[self.pos]
         self.pos += 1
         if token_type != expected_type:
-            print(f"Unexpected token, actual: {token_type}, expected: {expected_type}")
+            logging.error(f"Unexpected token, actual: {token_type}, expected: {expected_type}")
             sys.exit(1)
         return token_type, literal
 
