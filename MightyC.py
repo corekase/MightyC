@@ -3,7 +3,7 @@ import sys, subprocess, re
 from enum import Enum
 from typing import List, Optional, Tuple
 
-Token = Enum("Tokens", "WHITESPACE LPAREN RPAREN LBRACE RBRACE SEMICOLON INT \
+Token = Enum("Token", "WHITESPACE LPAREN RPAREN LBRACE RBRACE SEMICOLON INT \
               VOID RETURN IDENTIFIER CONSTANT")
 
 class Lexer:
