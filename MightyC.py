@@ -54,10 +54,9 @@ class Parser:
         self.end = len(self.tokens)
 
     def parse_program(self):
-        program = Program()
-        program.add_child(self.parse_function())
+        program = Program([self.parse_function()])
         if self.pos != self.end:
-            print("Error: Extra tokens found at end of input")
+            print("error: extra tokens found at end of input")
             sys.exit(1)
         return program
 
@@ -70,15 +69,14 @@ class Parser:
         self.expects("{")
         statement = self.parse_statement()
         self.expects("}")
-        node = Function(name)
-        node.add_child(statement)
+        node = Function(name, [statement])
         return node
 
     def parse_statement(self):
         self.expects("return")
         constant = self.parse_exp()
         self.expects(";")
-        return Return(constant)
+        return Return([constant])
 
     def parse_exp(self):
         literal = self.expects("constant")[1]
@@ -86,7 +84,7 @@ class Parser:
 
     def expects(self, expected):
         if self.pos >= self.end:
-            print(f"Unexpected end of input, expected: {expected}")
+            print(f"unexpected end of input, expected: {expected}")
             sys.exit(1)
         token_type, literal = self.tokens[self.pos]
         if token_type != expected:
@@ -96,9 +94,9 @@ class Parser:
         return token_type, literal
 
 class ASTNode:
-    def __init__(self, node_type):
+    def __init__(self, node_type, children=[]):
         self.type = node_type
-        self.children = []
+        self.children = children
 
     def add_child(self, child):
         self.children.append(child)
@@ -114,21 +112,20 @@ class ASTNode:
         pass
 
 class Program(ASTNode):
-    def __init__(self):
-        super().__init__("program")
+    def __init__(self, children=[]):
+        super().__init__("program", children)
 
 class Function(ASTNode):
-    def __init__(self, name):
-        super().__init__("function")
+    def __init__(self, name, children=[]):
+        super().__init__("function", children)
         self.name = name
 
     def more_info(self, indent=0):
         print("  " * indent + " -> " + self.name)
 
 class Return(ASTNode):
-    def __init__(self, exp):
-        super().__init__("return")
-        self.add_child(exp)
+    def __init__(self, children=[]):
+        super().__init__("return", children)
 
 class Constant(ASTNode):
     def __init__(self, value):
