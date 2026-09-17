@@ -181,7 +181,7 @@ class Driver:
         self.file_name = self.args.file[:-2]
         # Validate file name
         if not self._validate_file(self.args.file):
-            self._invalid_filename()
+            sys.exit(1)
 
     def _validate_file(self, file_path: str) -> bool:
         """Validate the input file exists and has the correct extension."""
@@ -192,11 +192,6 @@ class Driver:
             logging.error(f"Invalid file extension. Expected .c, got {file_path}")
             return False
         return True
-
-    def _invalid_filename(self):
-        """Log error and exit with non-zero code."""
-        logging.error("Invalid filename")
-        sys.exit(1)
 
     def _run_command(self, command: list, description: str):
         """Execute a subprocess command and log the output."""
