@@ -178,7 +178,7 @@ class Driver:
         self.parser.add_argument('--parse', action='store_true', help='Only perform parsing')
         self.parser.add_argument('--codegen', action='store_true', help='Only perform code generation')
         self.args = self.parser.parse_args()
-
+        self.file_name = self.args.file[:-2]
         # Validate file name
         if not self._validate_file(self.args.file):
             self._invalid_filename()
@@ -211,20 +211,20 @@ class Driver:
     def _cleanup(self):
         """Clean up intermediate files."""
         for ext in ('.i', '.s', '.o'):
-            file_path = f"{self.args.file[:-2]}{ext}"
+            file_path = f"{self.file_name}{ext}"
             if os.path.exists(file_path):
                 os.remove(file_path)
                 logging.info(f"Removed intermediate file: {file_path}")
 
     def preprocess(self):
         """Preprocess the C source file."""
-        output_file = f"{self.args.file[:-2]}.i"
+        output_file = f"{self.file_name}.i"
         command = ["gcc", "-E", "-P", f"{self.args.file}", "-o", output_file]
         self._run_command(command, "Preprocessing")
 
     def lex(self):
         """Perform lexical analysis."""
-        tokens = Lexer().analyze(self.args.file[:-2])
+        tokens = Lexer().analyze(self.file_name)
         logging.info(f"Lexical analysis completed. Found {len(tokens)} tokens")
         if self.args.lex:
             logging.info("Exiting after lexical analysis")
@@ -244,7 +244,7 @@ class Driver:
 
     def codegen(self, ast):
         """Generate assembly code from AST."""
-        self._run_command(["gcc", "-S", "-O", "-fno-asynchronous-unwind-tables", "-fcf-protection=none", f"{self.args.file[:-2]}.i", "-o", f"{self.args.file[:-2]}.s"], "Code generation")
+        self._run_command(["gcc", "-S", "-O", "-fno-asynchronous-unwind-tables", "-fcf-protection=none", f"{self.file_name}.i", "-o", f"{self.file_name}.s"], "Code generation")
         if self.args.codegen:
             logging.info("Exiting after code generation")
             self._cleanup()
@@ -253,12 +253,12 @@ class Driver:
     def assemble(self, ast):
         """Assemble the code and handle options."""
         if self.args.S:
-            self._run_command(["rm", f"{self.args.file[:-2]}.i"], "Removing preprocessed file")
+            self._run_command(["rm", f"{self.file_name}.i"], "Removing preprocessed file")
             sys.exit(0)
 
     def compile(self):
         """Compile the assembly to binary."""
-        self._run_command(["gcc", f"{self.args.file[:-2]}.s", "-o", self.args.file[:-2]], "Compiling to executable")
+        self._run_command(["gcc", f"{self.file_name}.s", "-o", self.file_name], "Compiling to executable")
 
     def run(self):
         """Main execution flow."""
