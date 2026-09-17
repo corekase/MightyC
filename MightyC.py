@@ -23,7 +23,13 @@ class Lexer:
         (re.compile(r'(?<!\d)(?:[a-zA-Z_]\w*|0-9+)(?!\w)'), Token.IDENTIFIER),
         (re.compile(r'[0-9]+'), Token.CONSTANT)
     )
-    NON_TOKEN = re.compile(r'\S+')
+
+    def get_line_column(self, data, position):
+        """Returns (line_number, column_number) based on the current position."""
+        line_number = data[:position].count('\n') + 1
+        line_start = data.rfind('\n', 0, position)
+        column_number = position - line_start - 1
+        return line_number, column_number
 
     def analyze(self, file_name):
         try:
@@ -46,12 +52,8 @@ class Lexer:
                         tokens.append((token_type, match.group()))
                     break
             if not matched:
-                match = Lexer.NON_TOKEN.match(data, position)
-                if match:
-                    unknown_token = match.group()
-                else:
-                    unknown_token = "unknown"
-                print(f"Unexpected token {unknown_token}")
+                line_number, column_number = self.get_line_column(data, position)
+                print(f"Unexpected token at line {line_number}, column {column_number}")
                 sys.exit(1)
         return tokens
 
@@ -226,6 +228,7 @@ class Driver:
         logging.info(f"Lexical analysis completed. Found {len(tokens)} tokens")
         if self.args.lex:
             logging.info("Exiting after lexical analysis")
+            self._cleanup()
             sys.exit(0)
         return tokens
 
@@ -235,6 +238,7 @@ class Driver:
         ast.print_ast()
         if self.args.parse:
             logging.info("Exiting after parsing")
+            self._cleanup()
             sys.exit(0)
         return ast
 
@@ -243,6 +247,7 @@ class Driver:
         self._run_command(["gcc", "-S", "-O", "-fno-asynchronous-unwind-tables", "-fcf-protection=none", f"{self.args.file[:-2]}.i", "-o", f"{self.args.file[:-2]}.s"], "Code generation")
         if self.args.codegen:
             logging.info("Exiting after code generation")
+            self._cleanup()
             sys.exit(0)
 
     def assemble(self, ast):
