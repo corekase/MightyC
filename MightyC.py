@@ -31,13 +31,7 @@ class Lexer:
         column_number = position - line_start - 1
         return line_number, column_number
 
-    def analyze(self, file_name):
-        try:
-            with open(f"{file_name}.i", "r") as file:
-                data = file.read()
-        except FileNotFoundError:
-            logging.error(f"Error: File {file_name}.i not found")
-            sys.exit(1)
+    def analyze(self, data):
         tokens = []
         position = 0
         end_position = len(data)
@@ -58,12 +52,10 @@ class Lexer:
         return tokens
 
 class Parser:
-    def __init__(self, tokens: List[Tuple[Token, str]]):
+    def parse(self, tokens: List[Tuple[Token, str]]) -> "ASTNode":
         self.tokens = tokens
         self.pos = 0
         self.end = len(tokens)
-
-    def parse(self) -> "ASTNode":
         """Main parsing entry point"""
         program = self.parse_program()
         if self.pos != self.end:
@@ -219,7 +211,7 @@ class Driver:
 
     def lex(self):
         """Perform lexical analysis."""
-        tokens = Lexer().analyze(self.file_name)
+        tokens = Lexer().analyze(self.data)
         logging.info(f"Lexical analysis completed. Found {len(tokens)} tokens")
         if self.args.lex:
             logging.info("Exiting after lexical analysis")
@@ -229,7 +221,7 @@ class Driver:
 
     def parse(self, tokens):
         """Parse tokens into an AST."""
-        ast = Parser(tokens).parse()
+        ast = Parser().parse(tokens)
         ast.print_ast()
         if self.args.parse:
             logging.info("Exiting after parsing")
@@ -259,6 +251,12 @@ class Driver:
         """Main execution flow."""
         try:
             self.preprocess()
+            try:
+                with open(f"{self.file_name}.i", "r") as file:
+                    self.data = file.read()
+            except FileNotFoundError:
+                logging.error(f"Error: File {self.file_name}.i not found")
+                sys.exit(1)
             tokens = self.lex()
             ast = self.parse(tokens)
             self.codegen(ast)
